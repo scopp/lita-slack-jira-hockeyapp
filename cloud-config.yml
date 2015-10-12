@@ -1,0 +1,78 @@
+#cloud-config
+
+coreos:
+  units:
+    - name: redis.service
+      command: start
+      enabled: true
+      content: |
+        [Unit]
+        Description=Redis data structure server
+        Requires=docker.service
+        After=docker.service
+
+        [Service]
+        TimeoutStartSec=0
+        Restart=always
+        ExecStartPre=-/usr/bin/docker kill redis
+        ExecStartPre=-/usr/bin/docker rm redis
+        ExecStartPre=/usr/bin/docker pull litaio/redis:latest
+        ExecStart=/usr/bin/docker run --name redis -v /var/lib/redis:/var/lib/redis litaio/redis
+        ExecStop=/usr/bin/docker stop redis
+
+        [Install]
+        WantedBy=multi-user.target
+    - name: lita-dev.service
+      command: start
+      enabled: true
+      content: |
+        [Unit]
+        Description=Lita development environment
+        Requires=docker.service redis.service
+        After=docker.service redis.service
+
+        [Service]
+        TimeoutStartSec=0
+        ExecStartPre=-/usr/bin/docker kill lita-dev
+        ExecStartPre=-/usr/bin/docker rm lita-dev
+        ExecStartPre=-/usr/bin/docker build -t lita-dev /docker
+        ExecStart=/usr/bin/docker run\
+          --name lita-dev\
+          --link redis:redis\
+          -p 8080:8080\
+          -v /workspace:/home/lita/workspace\
+          lita-dev
+        ExecStop=/usr/bin/docker stop lita-dev
+
+        [Install]
+        WantedBy=multi-user.target
+write_files:
+  - path: /opt/bin/lita-dev
+    permissions: 0755
+    owner: root
+    content: |
+      #!/bin/bash
+
+      if ! systemctl is-active redis.service >/dev/null; then
+        echo -n "Redis is still starting up. Please wait."
+
+        until systemctl is-active redis.service >/dev/null; do
+          sleep 1
+          echo -n "."
+        done
+
+        echo
+      fi
+
+      if ! systemctl is-active lita-dev.service >/dev/null; then
+        echo -n "The development environment is still starting up. Please wait."
+
+        until systemctl is-active lita-dev.service >/dev/null; do
+          sleep 1
+          echo -n "."
+        done
+
+        echo
+      fi
+
+      exec docker exec -it lita-dev /bin/bash
