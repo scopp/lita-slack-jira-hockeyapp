@@ -101,6 +101,7 @@ module Lita
                        .gsub('&gt;', '>')
                        .gsub('&amp;', '&')
                        .gsub('-', '\\-')
+                       .gsub('?', '\\?')
                        .gsub('[', '\\[')
                        .gsub(']', '\\]')
                        .gsub('(', '\\(')
