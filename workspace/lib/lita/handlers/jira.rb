@@ -44,72 +44,35 @@ module Lita
       # Echo everything
       route /(.*)/, :echo, command: false
 
-      # Detect ambient JIRA issues in non-command messages
-      #route ISSUE_PATTERN, :ambient, command: false
+      def jql_search_formatting(message)
+        message = message.gsub('&lt;', '<')
+                         .gsub('&gt;', '>')
+                         .gsub('&amp;', '&')
+                         .gsub('-', '\\-')
+                         .gsub('?', '\\?')
+                         .gsub('[', '\\[')
+                         .gsub(']', '\\]')
+                         .gsub('(', '\\(')
+                         .gsub(')', '\\)')
+                         .gsub('*', '\\*')
+                         .gsub("'", %q(\\\'))
+                         .gsub(/\\/) { '\\\\' }
+      end
 
-              def remove_formatting(message)
-                # https://api.slack.com/docs/formatting
-                message = message.gsub(/
-                    <                    # opening angle bracket
-                    (?<type>[@#!])?      # link type
-                    (?<link>[^>|]+)      # link
-                    (?:\|                # start of |label (optional)
-                        (?<label>[^>]+)  # label
-                    )?                   # end of label
-                    >                    # closing angle bracket
-                    /ix) do
-                  link  = Regexp.last_match[:link]
-                  label = Regexp.last_match[:label]
+      # max 256 JIRA summary length
+      def jira_summary_formatting(message)
+        message = message.gsub('&lt;', '<')
+                         .gsub('&gt;', '>')
+                         .gsub('&amp;', '&')
 
-                  case Regexp.last_match[:type]
-                    when '@'
-                      if label
-                        label
-                      else
-                        user = User.find_by_id(link)
-                        if user
-                          "@#{user.mention_name}"
-                        else
-                          "@#{link}"
-                        end
-                      end
+        message = message[0..250]
+      end
 
-                    when '#'
-                      if label
-                        label
-                      else
-                        channel = Lita::Room.find_by_id(link)
-                        if channel
-                          "\##{channel.name}"
-                        else
-                          "\##{link}"
-                        end
-                      end
-
-                    when '!'
-                      "@#{link}" if ['channel', 'group', 'everyone'].include? link
-                    else
-                      link = link.gsub /^mailto:/, ''
-                      if label && !(link.include? label)
-                        "#{label} (#{link})"
-                      else
-                        label == nil ? link : label
-                      end
-                  end
-                end
-                message.gsub('&lt;', '<')
-                       .gsub('&gt;', '>')
-                       .gsub('&amp;', '&')
-                       .gsub('-', '\\-')
-                       .gsub('?', '\\?')
-                       .gsub('[', '\\[')
-                       .gsub(']', '\\]')
-                       .gsub('(', '\\(')
-                       .gsub(')', '\\)')
-                       .gsub('*', '\\*')
-                       .gsub(/\\/) { '\\\\' }
-                       .gsub("'", %q(\\\'))
-              end
+      def jira_description_formatting(message)
+        message = message.gsub('&lt;', '<')
+                         .gsub('&gt;', '>')
+                         .gsub('&amp;', '&')
+      end
 
       def echo(response)
         message_array = response.matches
@@ -120,6 +83,9 @@ module Lita
 
         data = MultiJson.load(message_string)
         text = data['text']
+        text = text.gsub('<', '')
+                   .gsub('|View on HockeyApp>', '')
+
         icons = data['icons']
         attachment_fields = nil
         platform = nil
@@ -136,9 +102,13 @@ module Lita
         release_type = attachment_fields[0][1]['value']
         version = attachment_fields[0][2]['value']
         location = attachment_fields[0][3]['value']
-        location = remove_formatting(location)
         reason = attachment_fields[0][4]['value']
-        reason = remove_formatting(reason)
+
+        location_search = jql_search_formatting(location)
+        location_summary = jira_summary_formatting(location)
+        location_desc = jira_description_formatting(location)
+        reason_search = jql_search_formatting(reason)
+        reason_desc = jira_description_formatting(reason)
 
         log.info
         log.info "text               = #{text}"
@@ -147,14 +117,19 @@ module Lita
         log.info "release_type       = #{release_type}"
         log.info "version            = #{version}"
         log.info "location           = #{location}"
+        log.info "location_search    = #{location_search}"
+        log.info "location_summary   = #{location_summary}"
+        log.info "location_desc      = #{location_desc}"
         log.info "reason             = #{reason}"
+        log.info "reason_search      = #{reason_search}"
+        log.info "reason_desc        = #{reason_desc}"
         log.info
 
-        issues = fetch_issues("summary ~ '#{location}' AND description ~ '#{reason}' AND status not in (Closed, 'Test Verified')")
+        issues = fetch_issues("summary ~ '#{location_search}' AND description ~ '#{reason_search}' AND status not in (Closed, 'Test Verified')")
 
-        #new_issue = create_issue("OD", "#{location}", "#{reason}") unless issues.size > 0
-        log.info "#{t('hockeyappissues.empty')}" unless issues.size > 0
-        return response.reply(t('hockeyappissues.empty')) unless issues.size > 0
+        new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}") unless issues.size > 0
+        log.info "#{t('hockeyappissues.new', site: config.site, key: new_issue.key)}" unless issues.size > 0
+        return response.reply(t('hockeyappissues.new', site: config.site, key: new_issue.key)) unless issues.size > 0
 
         log.info duplicate_issue(issues)
         response.reply(duplicate_issue(issues))

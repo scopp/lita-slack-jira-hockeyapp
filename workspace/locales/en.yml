@@ -39,5 +39,5 @@ en:
         comment:
           added: "Comment added to %{issue}"
         hockeyappissues:
-          empty: "This is a new issue, logging...j/k still prototype"
+          new: "This is a new issue, logged as %{site}/browse/%{key}"
           duplicate: "This is a duplicate issue of:"
