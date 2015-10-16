@@ -65,6 +65,7 @@ module JiraHelper
       issue.save(fields: { project: { id: project.id },
                            issuetype: { id: "1" },
                            summary: summary,
+                           components: [{ name: "crashes" }],
                            description: description })
       issue.fetch
       issue
