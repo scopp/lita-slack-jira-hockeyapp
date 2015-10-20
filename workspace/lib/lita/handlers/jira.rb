@@ -104,6 +104,7 @@ module Lita
         location = attachment_fields[0][3]['value']
         reason = attachment_fields[0][4]['value']
 
+        label = version.split(" ")
         location_search = jql_search_formatting(location)
         location_summary = "Fix crash in #{jira_summary_formatting(location)}"
         location_desc = jira_description_formatting(location)
@@ -123,29 +124,35 @@ module Lita
         log.info "reason             = #{reason}"
         log.info "reason_search      = #{reason_search}"
         log.info "reason_desc        = #{reason_desc}"
+        log.info "label              = #{label[0]}"
         log.info
 
         issues = fetch_issues("summary ~ '#{location_search}' AND description ~ '#{reason_search}' AND status not in (Closed, 'Test Verified')")
 
-        new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}") unless issues.size > 0
+        new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}", "#{label[0]}") unless issues.size > 0
         log.info "#{t('hockeyappissues.new', site: config.site, key: new_issue.key)}" unless issues.size > 0
         return response.reply(t('hockeyappissues.new', site: config.site, key: new_issue.key)) unless issues.size > 0
 
         log.info duplicate_issue(issues)
         response.reply(duplicate_issue(issues))
-        comment(response, issues, text, platform, release_type, version)
+        comment(response, issues, text, platform, release_type, version, label[0])
       end
 
-      def comment(response, issues, text, platform, release_type, version)
-        issues.map { |issue| comment_issue(response, issue, text, platform, release_type, version) }
+      def comment(response, issues, text, platform, release_type, version, label)
+        issues.map { |issue| comment_issue(response, issue, text, platform, release_type, version, label) }
       end
 
-      def comment_issue(response, issue, text, platform, release_type, version)
+      def comment_issue(response, issue, text, platform, release_type, version, label)
         comment_string = "#{text}\nplatform: #{platform}\nrelease_type: #{release_type}\nversion: #{version}"
         log.info comment_string
         comment = issue.comments.build
         comment.save!(body: comment_string)
-        response.reply(t('comment.added', issue: issue.key))
+        label_issue(issue, label)
+        response.reply(t('comment.added', label: label, issue: issue.key))
+      end
+
+      def label_issue(issue, label)
+        issue.save(update: { labels: [ {add: label} ] })
       end
 
       def todo(response)

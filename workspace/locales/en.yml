@@ -37,7 +37,7 @@ en:
           oneline: "%{url} - %{status}, %{assigned} - %{summary}"
           summary: "%{key}: %{summary}"
         comment:
-          added: "Comment added to %{issue}"
+          added: "Comment and label %{label} added to %{issue}"
         hockeyappissues:
           new: "This is a new issue, logged as %{site}/browse/%{key}"
           duplicate: "This is a duplicate issue of:"

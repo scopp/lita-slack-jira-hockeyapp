@@ -57,7 +57,7 @@ module JiraHelper
       "#{config.site}#{config.context}/browse/#{key}"
     end
 
-    def create_issue(project, summary, description)
+    def create_issue(project, summary, description, label)
       project = fetch_project(project)
       return nil unless project
       issue = client.Issue.build
@@ -66,6 +66,7 @@ module JiraHelper
                            issuetype: { id: "1" },
                            summary: summary,
                            components: [{ name: "crashes" }],
+                           labels: [label],
                            description: description })
       issue.fetch
       issue
