@@ -106,7 +106,7 @@ module Lita
 
         label = version.split(" ")
         location_search = jql_search_formatting(location)
-        location_summary = "Fix crash in #{jira_summary_formatting(location)}"
+        location_summary = jira_summary_formatting("Fix crash in #{location}")
         location_desc = jira_description_formatting(location)
         reason_search = jql_search_formatting(reason)
         reason_desc = jira_description_formatting(reason)
