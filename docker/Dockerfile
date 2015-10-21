@@ -7,7 +7,7 @@ ENV PATH /home/lita/.gems/bin:$PATH
 ENV PS1 '\u@lita-dev \w \$ '
 
 RUN apt-get -qq update &&\
-  apt-get -qy install socat vim git sudo &&\
+  apt-get -qy install socat vim git libcurl4-openssl-dev sudo &&\
   sed -i.bkp -e\
     's/%sudo\s\+ALL=(ALL\(:ALL\)\?)\s\+ALL/%sudo ALL=NOPASSWD:ALL/g'\
     /etc/sudoers &&\

@@ -9,6 +9,7 @@ module Lita
     class Jira < Handler
       namespace 'Jira'
 
+      config :hockeyapp_token, required: true, type: String
       config :username, required: true, type: String
       config :password, required: true, type: String
       config :site, required: true, type: String
@@ -105,6 +106,7 @@ module Lita
         reason = attachment_fields[0][4]['value']
 
         label = version.split(" ")
+        hockeyapp_url = text.rpartition(' ').last
         location_search = jql_search_formatting(location)
         location_summary = jira_summary_formatting("Fix crash in #{location}")
         location_desc = jira_description_formatting(location)
@@ -113,6 +115,7 @@ module Lita
 
         log.info
         log.info "text               = #{text}"
+        log.info "hockeyapp_url      = #{hockeyapp_url}"
         log.info "platform           = #{platform}"
         #log.info "attachement_fields = #{attachment_fields}"
         log.info "release_type       = #{release_type}"
@@ -130,29 +133,65 @@ module Lita
         issues = fetch_issues("summary ~ '#{location_search}' AND description ~ '#{reason_search}' AND status not in (Closed, 'Test Verified')")
 
         new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}", "#{label[0]}") unless issues.size > 0
+        hockeyapp_jira_link(new_issue, hockeyapp_url) unless issues.size > 0
         log.info "#{t('hockeyappissues.new', site: config.site, key: new_issue.key)}" unless issues.size > 0
         return response.reply(t('hockeyappissues.new', site: config.site, key: new_issue.key)) unless issues.size > 0
 
         log.info duplicate_issue(issues)
         response.reply(duplicate_issue(issues))
-        comment(response, issues, text, platform, release_type, version, label[0])
+        comment_issue(response, issues, text, platform, release_type, version, label[0], hockeyapp_url)
       end
 
-      def comment(response, issues, text, platform, release_type, version, label)
-        issues.map { |issue| comment_issue(response, issue, text, platform, release_type, version, label) }
-      end
-
-      def comment_issue(response, issue, text, platform, release_type, version, label)
-        comment_string = "#{text}\nplatform: #{platform}\nrelease_type: #{release_type}\nversion: #{version}"
-        log.info comment_string
-        comment = issue.comments.build
-        comment.save!(body: comment_string)
-        label_issue(issue, label)
-        response.reply(t('comment.added', label: label, issue: issue.key))
+      def comment_issue(response, issues, text, platform, release_type, version, label, hockeyapp_url)
+        issues.map { |issue|
+          comment_string = "#{text}\nplatform: #{platform}\nrelease_type: #{release_type}\nversion: #{version}"
+          log.info comment_string
+          comment = issue.comments.build
+          comment.save!(body: comment_string)
+          label_issue(issue, label)
+          hockeyapp_jira_link(issue, hockeyapp_url)
+          response.reply(t('comment.added', label: label, issue: issue.key))
+        }
       end
 
       def label_issue(issue, label)
         issue.save(update: { labels: [ {add: label} ] })
+      end
+
+      # update hockey crash with JIRA url, status=0=OPEN
+      def hockeyapp_jira_link(issue, hockeyapp_url)
+        hockeyapp_api_url = get_hockeyapp_api_url(hockeyapp_url)
+
+        #curl -F "status=0" -F "ticket_url=#{site}/browse/#{issue.key}" -H "X-HockeyAppToken: #{hockeyapp_token}" hockeyapp_api_url
+        c = Curl::Easy.http_post("#{hockeyapp_api_url}",
+                         Curl::PostField.content('status', '0'),
+                         Curl::PostField.content('ticket_url', "#{config.site}/browse/#{issue.key}")) do |curl|
+              curl.headers['X-HockeyAppToken'] = "#{config.hockeyapp_token}"
+        end
+        c.perform
+      end
+
+      def get_hockeyapp_api_url(hockeyapp_url)
+        hockeyapp_url = hockeyapp_url.gsub('manage', 'api/2')
+
+        http = Curl.get("https://rink.hockeyapp.net/api/2/apps") do|http|
+        http.headers['X-HockeyAppToken'] = "#{config.hockeyapp_token}"
+        end
+
+        hockapp_url_id = hockeyapp_url[/apps(.*?)crash_reasons/m, 1].gsub('/', '')
+        api_url_id = nil
+
+        data = JSON.parse(http.body_str)
+        data['apps'].each do |app|
+          if app['id'].to_s == hockapp_url_id.to_s
+            api_url_id = app['public_identifier']
+          end
+        end
+
+        hockeyapp_api_url = hockeyapp_url.gsub("#{hockapp_url_id}", "#{api_url_id}")
+        log.info "hockeyapp_url: #{hockeyapp_api_url}"
+
+        return hockeyapp_api_url
       end
 
       def todo(response)

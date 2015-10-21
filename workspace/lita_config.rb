@@ -36,9 +36,10 @@ Lita.configure do |config|
   config.robot.adapter = :slack
   config.adapters.slack.token = ENV['SLACK_TOKEN']
 
-  config.handlers.jira.site     = ENV['JIRA_SITE']
-  config.handlers.jira.username = ENV['JIRA_USERNAME']
-  config.handlers.jira.password = ENV['JIRA_PASSWORD']
-  config.handlers.jira.ambient  = true
+  config.handlers.jira.hockeyapp_token = ENV['HOCKEYAPP_TOKEN']
+  config.handlers.jira.site            = ENV['JIRA_SITE']
+  config.handlers.jira.username        = ENV['JIRA_USERNAME']
+  config.handlers.jira.password        = ENV['JIRA_PASSWORD']
+  config.handlers.jira.ambient         = true
 
 end
