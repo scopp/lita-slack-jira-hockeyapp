@@ -13,6 +13,7 @@ module Lita
       config :username, required: true, type: String
       config :password, required: true, type: String
       config :site, required: true, type: String
+      config :release_excludes, required: false, type: String
       config :context, required: false, type: String, default: ''
       config :format, required: false, type: String, default: 'verbose'
       config :ambient, required: false, types: [TrueClass, FalseClass], default: false
@@ -24,58 +25,11 @@ module Lita
       include ::JiraHelper::Regex
       include ::JiraHelper::Utility
 
-      route(
-        /^jira\scomment\son\s#{ISSUE_PATTERN}\s#{COMMENT_PATTERN}$/,
-        :comment,
-        command: true,
-        help: {
-          t('help.comment.syntax') => t('help.comment.desc')
-        }
-      )
+      # Anything coming from a bot and has data[username] field
+      # see message_handler.rb:158
+      route /(.*)/, :create_or_comment, command: false
 
-      route(
-        /^todo\s#{PROJECT_PATTERN}\s#{SUBJECT_PATTERN}(\s#{SUMMARY_PATTERN})?$/,
-        :todo,
-        command: true,
-        help: {
-          t('help.todo.syntax') => t('help.todo.desc')
-        }
-      )
-
-      # Echo everything
-      route /(.*)/, :echo, command: false
-
-      def jql_search_formatting(message)
-        message = message.gsub('&lt;', '<')
-                         .gsub('&gt;', '>')
-                         .gsub('&amp;', '&')
-                         .gsub('-', '\\-')
-                         .gsub('?', '\\?')
-                         .gsub('[', '\\[')
-                         .gsub(']', '\\]')
-                         .gsub('(', '\\(')
-                         .gsub(')', '\\)')
-                         .gsub('*', '\\*')
-                         .gsub("'", %q(\\\'))
-                         .gsub(/\\/) { '\\\\' }
-      end
-
-      # max 256 JIRA summary length
-      def jira_summary_formatting(message)
-        message = message.gsub('&lt;', '<')
-                         .gsub('&gt;', '>')
-                         .gsub('&amp;', '&')
-
-        message = message[0..250]
-      end
-
-      def jira_description_formatting(message)
-        message = message.gsub('&lt;', '<')
-                         .gsub('&gt;', '>')
-                         .gsub('&amp;', '&')
-      end
-
-      def echo(response)
+      def create_or_comment(response)
         message_array = response.matches
         message_string = message_array[0].to_s
         message_string = message_string[2..-3]
@@ -105,7 +59,8 @@ module Lita
         location = attachment_fields[0][3]['value']
         reason = attachment_fields[0][4]['value']
 
-        label = version.split(" ")
+        label = version.split(".")
+        label = "#{label[0]}.#{label[1]}.#{label[2].split(" ")[0]}" #only choose 1.X.X part of str
         hockeyapp_url = text.rpartition(' ').last
         location_search = jql_search_formatting(location)
         location_summary = jira_summary_formatting("Fix crash in #{location}")
@@ -127,19 +82,61 @@ module Lita
         log.info "reason             = #{reason}"
         log.info "reason_search      = #{reason_search}"
         log.info "reason_desc        = #{reason_desc}"
-        log.info "label              = #{label[0]}"
+        log.info "label              = #{label}"
         log.info
 
+        unless config.release_excludes.nil?
+          config.release_excludes.split(",").each do |release|
+            if release == label
+              return response.reply(t('release.excluded', release: label))
+            end
+          end
+        end
+
+        # search for exisiting JIRA tickets based on location and reason
         issues = fetch_issues("summary ~ '#{location_search}' AND description ~ '#{reason_search}' AND status not in (Closed, 'Test Verified')")
 
-        new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}", "#{label[0]}") unless issues.size > 0
+        # create a new JIRA ticket if no issues are found
+        new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}", "#{label}") unless issues.size > 0
         hockeyapp_jira_link(new_issue, hockeyapp_url) unless issues.size > 0
         log.info "#{t('hockeyappissues.new', site: config.site, key: new_issue.key)}" unless issues.size > 0
         return response.reply(t('hockeyappissues.new', site: config.site, key: new_issue.key)) unless issues.size > 0
 
+        # comment on all existing tickets if they exist
         log.info duplicate_issue(issues)
         response.reply(duplicate_issue(issues))
-        comment_issue(response, issues, text, platform, release_type, version, label[0], hockeyapp_url)
+        comment_issue(response, issues, text, platform, release_type, version, label, hockeyapp_url)
+      end
+
+      # exclude special characters that conflict with JQL queries
+      def jql_search_formatting(message)
+        message = message.gsub('&lt;', '<')
+                         .gsub('&gt;', '>')
+                         .gsub('&amp;', '&')
+                         .gsub('-', '\\-')
+                         .gsub('?', '\\?')
+                         .gsub('[', '\\[')
+                         .gsub(']', '\\]')
+                         .gsub('(', '\\(')
+                         .gsub(')', '\\)')
+                         .gsub('*', '\\*')
+                         .gsub("'", %q(\\\'))
+                         .gsub(/\\/) { '\\\\' }
+      end
+
+      # max 256 JIRA summary length
+      def jira_summary_formatting(message)
+        message = message.gsub('&lt;', '<')
+                         .gsub('&gt;', '>')
+                         .gsub('&amp;', '&')
+
+        message = message[0..250]
+      end
+
+      def jira_description_formatting(message)
+        message = message.gsub('&lt;', '<')
+                         .gsub('&gt;', '>')
+                         .gsub('&amp;', '&')
       end
 
       def comment_issue(response, issues, text, platform, release_type, version, label, hockeyapp_url)
@@ -192,31 +189,6 @@ module Lita
         log.info "hockeyapp_url: #{hockeyapp_api_url}"
 
         return hockeyapp_api_url
-      end
-
-      def todo(response)
-        issue = create_issue(response.match_data['project'],
-                             response.match_data['subject'],
-                             response.match_data['summary'])
-        return response.reply(t('error.request')) unless issue
-        response.reply(t('issue.created', key: issue.key))
-      end
-
-      # rubocop:disable Metrics/AbcSize
-      def myissues(response)
-        return response.reply(t('error.not_identified')) unless user_stored?(response.user)
-
-        begin
-          issues = fetch_issues("assignee = '#{get_email(response.user)}' AND status not in (Closed)")
-        rescue
-          log.error('JIRA HTTPError')
-          response.reply(t('error.request'))
-          return
-        end
-
-        return response.reply(t('myissues.empty')) unless issues.size > 0
-
-        response.reply(format_issues(issues))
       end
 
       def ambient(response)

@@ -41,3 +41,5 @@ en:
         hockeyappissues:
           new: "This is a new issue, logged as %{site}/browse/%{key}"
           duplicate: "This is a duplicate issue of:"
+        release:
+          excluded: "The %{release} release is excluded from bot processing, ignorning."
