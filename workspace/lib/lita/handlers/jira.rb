@@ -14,6 +14,7 @@ module Lita
       config :password, required: true, type: String
       config :site, required: true, type: String
       config :release_excludes, required: false, type: String
+      config :str_excludes, required: false, type: String
       config :context, required: false, type: String, default: ''
       config :format, required: false, type: String, default: 'verbose'
       config :ambient, required: false, types: [TrueClass, FalseClass], default: false
@@ -68,6 +69,19 @@ module Lita
         reason_search = jql_search_formatting(reason)
         reason_desc = jira_description_formatting(reason)
 
+        # to prevent duplicates of random memory addresses
+        # (e.g. "fault addr eee349d0", "fault addr 00w00300")
+        unless config.str_excludes.nil?
+          config.str_excludes.split(",").each do |str|
+            if location_search.include? str
+              location_search = location_search.gsub(/#{str}.+/, "#{str}")
+            end
+            if reason_search.include? str
+              reason_search = reason_search.gsub(/#{str}.+/, "#{str}")
+            end
+          end
+        end
+
         log.info
         log.info "text               = #{text}"
         log.info "hockeyapp_url      = #{hockeyapp_url}"
@@ -105,7 +119,8 @@ module Lita
         # comment on all existing tickets if they exist
         log.info duplicate_issue(issues)
         response.reply(duplicate_issue(issues))
-        comment_issue(response, issues, text, platform, release_type, version, label, hockeyapp_url)
+        comment_string = "#{text}\nplatform: #{platform}\nrelease_type: #{release_type}\nversion: #{version}\nlocation: {noformat}#{location_desc}{noformat}\nreason: {noformat}#{reason_desc}{noformat}"
+        comment_issue(response, issues, comment_string, label, hockeyapp_url)
       end
 
       # exclude special characters that conflict with JQL queries
@@ -120,8 +135,9 @@ module Lita
                          .gsub('(', '\\(')
                          .gsub(')', '\\)')
                          .gsub('*', '\\*')
-                         .gsub("'", %q(\\\'))
+                         .gsub("'", '')
                          .gsub(/\\/) { '\\\\' }
+
       end
 
       # max 256 JIRA summary length
@@ -139,9 +155,8 @@ module Lita
                          .gsub('&amp;', '&')
       end
 
-      def comment_issue(response, issues, text, platform, release_type, version, label, hockeyapp_url)
+      def comment_issue(response, issues, comment_string, label, hockeyapp_url)
         issues.map { |issue|
-          comment_string = "#{text}\nplatform: #{platform}\nrelease_type: #{release_type}\nversion: #{version}"
           log.info comment_string
           comment = issue.comments.build
           comment.save!(body: comment_string)
