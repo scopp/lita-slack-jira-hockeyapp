@@ -13,6 +13,7 @@ module Lita
       config :username, required: true, type: String
       config :password, required: true, type: String
       config :site, required: true, type: String
+      config :affects_versions, required: false, type: String
       config :release_excludes, required: false, type: String
       config :str_excludes, required: false, type: String
       config :context, required: false, type: String, default: ''
@@ -43,6 +44,7 @@ module Lita
                    .gsub('|View on HockeyApp>', '')
 
         icons = data['icons']
+        affects_version = nil
         attachment_fields = nil
         platform = nil
         release_type = nil
@@ -60,14 +62,23 @@ module Lita
         location = attachment_fields[0][3]['value']
         reason = attachment_fields[0][4]['value']
 
-        label = version.split(".")
-        label = "#{label[0]}.#{label[1]}.#{label[2].split(" ")[0]}" #only choose 1.X.X part of str
+        release = version.split(".")
+        release = "#{release[0]}.#{release[1]}.#{release[2].split(" ")[0]}" #only choose 1.X.X part of str
         hockeyapp_url = text.rpartition(' ').last
         location_search = jql_search_formatting(location)
         location_summary = jira_summary_formatting("Fix crash in #{location}")
         location_desc = jira_description_formatting(location)
         reason_search = jql_search_formatting(reason)
         reason_desc = jira_description_formatting(reason)
+
+        # if release is in AFFECTS_VERSIONS array, add it to the JIRA ticket
+        unless config.affects_versions.nil?
+          config.affects_versions.split(",").each do |ver|
+            if ver.include? release
+              affects_version = ver
+            end
+          end
+        end
 
         # to prevent duplicates of random memory addresses
         # (e.g. "fault addr eee349d0", "fault addr 00w00300")
@@ -96,13 +107,14 @@ module Lita
         log.info "reason             = #{reason}"
         log.info "reason_search      = #{reason_search}"
         log.info "reason_desc        = #{reason_desc}"
-        log.info "label              = #{label}"
+        log.info "release            = #{release}"
+        log.info "affects_version    = #{affects_version}"
         log.info
 
         unless config.release_excludes.nil?
-          config.release_excludes.split(",").each do |release|
-            if release == label
-              return response.reply(t('release.excluded', release: label))
+          config.release_excludes.split(",").each do |exclude|
+            if exclude == release
+              return response.reply(t('release.excluded', release: release))
             end
           end
         end
@@ -111,7 +123,7 @@ module Lita
         issues = fetch_issues("summary ~ '#{location_search}' AND description ~ '#{reason_search}' AND status not in (Closed, 'Test Verified')")
 
         # create a new JIRA ticket if no issues are found
-        new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}", "#{label}") unless issues.size > 0
+        new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}", "#{affects_version}") unless issues.size > 0
         hockeyapp_jira_link(new_issue, hockeyapp_url) unless issues.size > 0
         log.info "#{t('hockeyappissues.new', site: config.site, key: new_issue.key)}" unless issues.size > 0
         return response.reply(t('hockeyappissues.new', site: config.site, key: new_issue.key)) unless issues.size > 0
@@ -120,7 +132,7 @@ module Lita
         log.info duplicate_issue(issues)
         response.reply(duplicate_issue(issues))
         comment_string = "#{text}\nplatform: #{platform}\nrelease_type: #{release_type}\nversion: #{version}\nlocation: {noformat}#{location_desc}{noformat}\nreason: {noformat}#{reason_desc}{noformat}"
-        comment_issue(response, issues, comment_string, label, hockeyapp_url)
+        comment_issue(response, issues, comment_string, affects_version, hockeyapp_url)
       end
 
       # exclude special characters that conflict with JQL queries
@@ -155,19 +167,24 @@ module Lita
                          .gsub('&amp;', '&')
       end
 
-      def comment_issue(response, issues, comment_string, label, hockeyapp_url)
+      def comment_issue(response, issues, comment_string, affects_version, hockeyapp_url)
         issues.map { |issue|
           log.info comment_string
           comment = issue.comments.build
           comment.save!(body: comment_string)
-          label_issue(issue, label)
+          #label_issue(issue, label)
+          add_affects_version(issue, affects_version)
           hockeyapp_jira_link(issue, hockeyapp_url)
-          response.reply(t('comment.added', label: label, issue: issue.key))
+          response.reply(t('comment.added', affects_version: affects_version, issue: issue.key))
         }
       end
 
       def label_issue(issue, label)
         issue.save(update: { labels: [ {add: label} ] })
+      end
+
+      def add_affects_version(issue, affects_version)
+        issue.save(update: { versions: [ {add: {name: affects_version}} ] })
       end
 
       # update hockey crash with JIRA url, status=0=OPEN

@@ -40,6 +40,8 @@ Lita.configure do |config|
   config.handlers.jira.site             = ENV['JIRA_SITE']
   config.handlers.jira.username         = ENV['JIRA_USERNAME']
   config.handlers.jira.password         = ENV['JIRA_PASSWORD']
+  #config.handlers.jira.affects_versions = "1.0.0 (Jun),1.0.1 (July)"
+  config.handlers.jira.affects_versions = ENV['AFFECTS_VERSIONS']
   #config.handlers.jira.release_excludes = 1.0.0,1.0.1
   config.handlers.jira.release_excludes = ENV['RELEASE_EXCLUDES']
   #config.handlers.jira.str_excludes     = "fault addr ,libmono.,Unknown."
