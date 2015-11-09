@@ -14,6 +14,7 @@ module Lita
       config :password, required: true, type: String
       config :site, required: true, type: String
       config :affects_versions, required: false, type: String
+      config :component, required: false, type: String
       config :release_excludes, required: false, type: String
       config :str_excludes, required: false, type: String
       config :context, required: false, type: String, default: ''
