@@ -33,7 +33,7 @@ Lita.configure do |config|
   ## documentation for options.
   # config.handlers.some_handler.some_config_key = "value"
   # config.handlers.jira.component               = "crashes"
-  # config.handlers.jira.affects_versions        = "1.0.0 (Jun),1.0.1 (July)"
+  # config.handlers.jira.affects_versions        = "R1 (Jun),R2 (July)"
   # config.handlers.jira.release_excludes        = "1.0.0,1.0.1"
   # config.handlers.jira.str_excludes            = "fault addr ,libmono.,Unknown."
 

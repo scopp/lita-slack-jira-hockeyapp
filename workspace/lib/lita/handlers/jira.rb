@@ -63,8 +63,9 @@ module Lita
         location = attachment_fields[0][3]['value']
         reason = attachment_fields[0][4]['value']
 
-        release = version.split(".")
-        release = "#{release[0]}.#{release[1]}.#{release[2].split(" ")[0]}" #only choose 1.X.X part of str
+        #release = version.split(".")
+        #release = "#{release[0]}.#{release[1]}.#{release[2].split(" ")[0]}" #only choose 1.X.X part of str
+        release = version.split("(")[0].rstrip  # only choose first field of "release (version)"
         hockeyapp_url = text.rpartition(' ').last
         location_search = jql_search_formatting(location)
         location_summary = jira_summary_formatting("Fix crash in #{location}")
