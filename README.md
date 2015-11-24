@@ -8,6 +8,8 @@ export HOCKEYAPP_TOKEN=<hockeyapp token>
 export JIRA_SITE=<jira site url>
 export JIRA_USERNAME=<jira username>
 export JIRA_PASSWORD=<jira password>
-export AFFECTS_VERSIONS="1.0.0 (Jun),OD 1.0.1 (July)" <your affects versions in JIRA>
+export JIRA_COMPONENT="crashes"
+export JIRA_AFFECTS_VERSIONS="1.0.0 (Jun),OD 1.0.1 (July)" <your affects versions in JIRA>
 export RELEASE_EXCLUDES="0.0.1,0.0.2" <any releases you want to exlcude>
+export STR_EXCLUDES="this piece of text, that piece of text" <any location or reason strings you want to exlcude>
 ```
