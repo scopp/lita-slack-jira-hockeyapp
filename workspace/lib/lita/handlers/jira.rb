@@ -63,8 +63,14 @@ module Lita
         location = attachment_fields[0][3]['value']
         reason = attachment_fields[0][4]['value']
 
-        release = version.split("(")[0].rstrip.split(".")  # only choose "1.X.X" part of "1.X.X (version)"
-        release = "#{release[0]}.#{release[1]}" #only choose "1.X" part of "1.X.X"
+        release = version.split("(")[0].rstrip                        #get "X.X.X.X" part of "X.X.X.X (version)"
+        str_array = release.split(".")
+        if release.match /^[A-Z]/
+          release = "#{str_array[0]}.#{str_array[1]}"                 #only choose "A.X" part of "X.X.X.X"
+        else
+          release = "#{str_array[0]}.#{str_array[1]}.#{str_array[2].chars.first}" #only choose "1.X.X" part of "X.X.X.X"
+        end
+
         hockeyapp_url = text.rpartition(' ').last
         location_search = jql_search_formatting(location)
         location_summary = jira_summary_formatting("Fix crash in #{location}")
