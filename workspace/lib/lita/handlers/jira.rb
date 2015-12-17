@@ -127,7 +127,7 @@ module Lita
         end
 
         # search for exisiting JIRA tickets based on location and reason
-        issues = fetch_issues("summary ~ '#{location_search}' AND description ~ '#{reason_search}' AND status not in (Closed, 'Test Verified')")
+        issues = fetch_issues("summary ~ '#{location_search}' AND description ~ 'reason: #{reason_search}' AND status not in (Closed, 'Test Verified')")
 
         # create a new JIRA ticket if no issues are found
         new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}", "#{affects_version}") unless issues.size > 0
