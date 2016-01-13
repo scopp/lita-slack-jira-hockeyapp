@@ -129,8 +129,10 @@ module Lita
         # search for exisiting JIRA tickets based on location and reason
         issues = fetch_issues("summary ~ '#{location_search}' AND description ~ 'reason: #{reason_search}' AND status not in (Closed, 'Test Verified')")
 
+        apprun = get_hockeyapp_crash_apprun(hockeyapp_url)
+
         # create a new JIRA ticket if no issues are found
-        new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}", "#{affects_version}") unless issues.size > 0
+        new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}\n\n*AppRun:* #{apprun}", "#{affects_version}") unless issues.size > 0
         hockeyapp_jira_link(new_issue, hockeyapp_url) unless issues.size > 0
         log.info "#{t('hockeyappissues.new', site: config.site, key: new_issue.key)}" unless issues.size > 0
         return response.reply(t('hockeyappissues.new', site: config.site, key: new_issue.key)) unless issues.size > 0
@@ -138,7 +140,7 @@ module Lita
         # comment on all existing tickets if they exist
         log.info duplicate_issue(issues)
         response.reply(duplicate_issue(issues))
-        comment_string = "#{text}\nplatform: #{platform}\nrelease_type: #{release_type}\nversion: #{version}\nlocation: {noformat}#{location_desc}{noformat}\nreason: {noformat}#{reason_desc}{noformat}"
+        comment_string = "#{text}\nplatform: #{platform}\nrelease_type: #{release_type}\nversion: #{version}\napprun: #{apprun}\nlocation: {noformat}#{location_desc}{noformat}\nreason: {noformat}#{reason_desc}{noformat}"
         comment_issue(response, issues, comment_string, affects_version, hockeyapp_url)
       end
 
@@ -194,16 +196,38 @@ module Lita
         issue.save(update: { versions: [ {add: {name: affects_version}} ] })
       end
 
+      # get apprun of crash
+      def get_hockeyapp_crash_apprun(hockeyapp_url)
+        hockeyapp_api_url = get_hockeyapp_api_url(hockeyapp_url)
+
+        http = Curl.get(hockeyapp_api_url) do|http|
+          http.headers['X-HockeyAppToken'] = "#{config.hockeyapp_token}"
+        end
+        data = JSON.parse(http.body_str)
+        crash_id = data['crashes'][0]['id']
+        hockeyapp_crash_url = "#{hockeyapp_api_url[/(.*?)crash_reasons/m, 1]}crashes/#{crash_id}?format=text"
+
+        http = Curl.get(hockeyapp_crash_url) do|http|
+          http.follow_location = true
+          http.headers['X-HockeyAppToken'] = "#{config.hockeyapp_token}"
+        end
+        data = JSON.parse(http.body_str)
+        apprun = data['apprun']
+        log.info "apprun: #{apprun}"
+
+        return apprun
+      end
+
       # update hockey crash with JIRA url, status=0=OPEN
       def hockeyapp_jira_link(issue, hockeyapp_url)
         hockeyapp_api_url = get_hockeyapp_api_url(hockeyapp_url)
 
         #curl -F "status=0" -F "ticket_url=#{site}/browse/#{issue.key}" -H "X-HockeyAppToken: #{hockeyapp_token}" hockeyapp_api_url
         c = Curl::Easy.http_post("#{hockeyapp_api_url}",
-                         Curl::PostField.content('status', '0'),
-                         Curl::PostField.content('ticket_url', "#{config.site}/browse/#{issue.key}")) do |curl|
+            Curl::PostField.content('status', '0'),
+            Curl::PostField.content('ticket_url', "#{config.site}/browse/#{issue.key}")) do |curl|
               curl.headers['X-HockeyAppToken'] = "#{config.hockeyapp_token}"
-        end
+            end
         c.perform
       end
 
@@ -211,7 +235,7 @@ module Lita
         hockeyapp_url = hockeyapp_url.gsub('manage', 'api/2')
 
         http = Curl.get("https://rink.hockeyapp.net/api/2/apps") do|http|
-        http.headers['X-HockeyAppToken'] = "#{config.hockeyapp_token}"
+          http.headers['X-HockeyAppToken'] = "#{config.hockeyapp_token}"
         end
 
         hockapp_url_id = hockeyapp_url[/apps(.*?)crash_reasons/m, 1].gsub('/', '')
