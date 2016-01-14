@@ -207,11 +207,15 @@ module Lita
         crash_id = data['crashes'][0]['id']
         hockeyapp_crash_url = "#{hockeyapp_api_url[/(.*?)crash_reasons/m, 1]}crashes/#{crash_id}?format=text"
 
+        log.info "hockeyapp_crash_url: #{hockeyapp_crash_url}"
+
         http = Curl.get(hockeyapp_crash_url) do|http|
           http.follow_location = true
           http.headers['X-HockeyAppToken'] = "#{config.hockeyapp_token}"
         end
-        data = JSON.parse(http.body_str)
+        
+        body_str = http.body_str[/.*({.*)/m, 1]
+        data = JSON.parse(body_str)
         apprun = data['apprun']
         log.info "apprun: #{apprun}"
 
