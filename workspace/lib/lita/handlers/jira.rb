@@ -68,7 +68,12 @@ module Lita
         if release.match /^[A-Z]/
           release = "#{str_array[0]}.#{str_array[1]}"                 #only choose "A.X" part of "X.X.X.X"
         else
-          release = "#{str_array[0]}.#{str_array[1]}.#{str_array[2].chars.first}" #only choose "1.X.X" part of "X.X.X.X"
+          begin
+            release = "#{str_array[0]}.#{str_array[1]}.#{str_array[2].chars.first}" #only choose "1.X.X" part of "X.X.X.X"
+          rescue
+            log.error("ERROR: Someone is playing with the invalid '#{release}' release build.")
+            return response.reply(t('hockeyappissues.invalid_release', release: release))
+          end
         end
 
         hockeyapp_url = text.rpartition(' ').last
@@ -84,6 +89,10 @@ module Lita
             if ver.include? release
               affects_version = ver
             end
+          end
+          if affects_version.nil?
+            log.error("ERROR: The '#{release}' release is not defined in my configs.  '#{release}' crashes will not be processed until that is done.")
+            return response.reply(t('hockeyappissues.affects_version_undef_bot', release: release))
           end
         end
 
@@ -132,7 +141,12 @@ module Lita
         apprun = get_hockeyapp_crash_apprun(hockeyapp_url)
 
         # create a new JIRA ticket if no issues are found
-        new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}\n\n*AppRun:* #{apprun}", "#{affects_version}") unless issues.size > 0
+        begin
+          new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}\n\n*AppRun:* #{apprun}", "#{affects_version}") unless issues.size > 0
+        rescue
+          log.error("ERROR: The '#{release}' release is not defined in JIRA.  '#{release}' crashes will not be processed until that is done.")
+          return response.reply(t('hockeyappissues.affects_version_undef_jira', release: release))
+        end
         hockeyapp_jira_link(new_issue, hockeyapp_url) unless issues.size > 0
         log.info "#{t('hockeyappissues.new', site: config.site, key: new_issue.key)}" unless issues.size > 0
         return response.reply(t('hockeyappissues.new', site: config.site, key: new_issue.key)) unless issues.size > 0
@@ -213,7 +227,7 @@ module Lita
           http.follow_location = true
           http.headers['X-HockeyAppToken'] = "#{config.hockeyapp_token}"
         end
-        
+
         body_str = http.body_str[/.*({.*)/m, 1]
         data = JSON.parse(body_str)
         apprun = data['apprun']

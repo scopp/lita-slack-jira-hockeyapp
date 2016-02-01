@@ -41,5 +41,8 @@ en:
         hockeyappissues:
           new: "This is a new issue, logged as %{site}/browse/%{key}"
           duplicate: "This is a duplicate issue of:"
+          invalid_release: "<!here> Someone is playing with the invalid `%{release}` release build."
+          affects_version_undef_bot: "<!here> The `%{release}` affects version is not defined in my bot configs. `%{release}` crashes will not be processed until that is done."
+          affects_version_undef_jira: "<!here> The `%{release}` affects version is not defined in JIRA. `%{release}` crashes will not be processed until that is done."
         release:
           excluded: "The %{release} release is excluded from bot processing, ignoring."
