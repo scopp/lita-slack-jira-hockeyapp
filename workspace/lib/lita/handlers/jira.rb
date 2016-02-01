@@ -25,8 +25,6 @@ module Lita
 
       include ::JiraHelper::Issue
       include ::JiraHelper::Misc
-      include ::JiraHelper::Regex
-      include ::JiraHelper::Utility
 
       # Anything coming from a bot and has data[username] field
       # see message_handler.rb:158
