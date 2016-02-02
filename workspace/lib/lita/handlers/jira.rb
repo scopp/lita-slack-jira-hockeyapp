@@ -34,7 +34,8 @@ module Lita
         message_array = response.matches
         message_string = message_array[0].to_s
         message_string = message_string[2..-3]
-        message_string.delete! '\\'
+        message_string = message_string.gsub(/\\\\\\"/) { "'" } #change quoted text to use single quotes
+        message_string.delete! '\\' # remove all the extra '/' characters
         puts message_string
 
         data = MultiJson.load(message_string)
