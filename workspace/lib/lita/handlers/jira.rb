@@ -174,6 +174,7 @@ module Lita
                          .gsub("'", '')
                          .gsub(/\\/) { '\\\\' }
 
+        message = message[0..250]
       end
 
       # max 256 JIRA summary length
