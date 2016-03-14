@@ -16,6 +16,7 @@ module Lita
       config :affects_versions, required: false, type: String
       config :component, required: false, type: String
       config :release_excludes, required: false, type: String
+      config :projects, required: true, type: String
       config :str_excludes, required: false, type: String
       config :context, required: false, type: String, default: ''
       config :format, required: false, type: String, default: 'verbose'
@@ -62,25 +63,27 @@ module Lita
         location = attachment_fields[0][3]['value']
         reason = attachment_fields[0][4]['value']
 
+        hockeyapp_url = text.rpartition(' ').last
+        projects = eval(config.projects)
+        jira_project = projects[text.split(" ")[4].split("-")[0]]
+        location_search = jql_search_formatting(location)
+        location_summary = jira_summary_formatting("Fix crash in #{location}")
+        location_desc = jira_description_formatting(location)
+        reason_search = jql_search_formatting(reason)
+        reason_desc = jira_description_formatting(reason)
+
         release = version.split("(")[0].rstrip                        #get "X.X.X.X" part of "X.X.X.X (version)"
         str_array = release.split(".")
         if release.match /^[A-Z]/
           release = "#{str_array[0]}.#{str_array[1]}"                 #only choose "A.X" part of "X.X.X.X"
         else
           begin
-            release = "#{str_array[0]}.#{str_array[1]}.#{str_array[2].chars.first}" #only choose "1.X.X" part of "X.X.X.X"
+            release = "#{jira_project} #{str_array[0]}.#{str_array[1]}.#{str_array[2].chars.first}" #only choose "1.X.X" part of "X.X.X.X"
           rescue
             log.error("ERROR: Someone is playing with the invalid '#{release}' release build.")
             return response.reply(t('hockeyappissues.invalid_release', release: release))
           end
         end
-
-        hockeyapp_url = text.rpartition(' ').last
-        location_search = jql_search_formatting(location)
-        location_summary = jira_summary_formatting("Fix crash in #{location}")
-        location_desc = jira_description_formatting(location)
-        reason_search = jql_search_formatting(reason)
-        reason_desc = jira_description_formatting(reason)
 
         # if release is in AFFECTS_VERSIONS array, add it to the JIRA ticket
         unless config.affects_versions.nil?
@@ -90,7 +93,7 @@ module Lita
             end
           end
           if affects_version.nil?
-            log.error("ERROR: The '#{release}' release is not defined in my configs.  '#{release}' crashes will not be processed until that is done.")
+            log.error("The '#{release}' release is not defined in my configs.  '#{release}' crashes will not be processed until that is done.")
             return response.reply(t('hockeyappissues.affects_version_undef_bot', release: release))
           end
         end
@@ -115,6 +118,7 @@ module Lita
         #log.info "attachement_fields = #{attachment_fields}"
         log.info "release_type       = #{release_type}"
         log.info "version            = #{version}"
+        log.info "jira_project       = #{jira_project}"
         log.info "location           = #{location}"
         log.info "location_search    = #{location_search}"
         log.info "location_summary   = #{location_summary}"
@@ -124,7 +128,6 @@ module Lita
         log.info "reason_desc        = #{reason_desc}"
         log.info "release            = #{release}"
         log.info "affects_version    = #{affects_version}"
-        log.info
 
         unless config.release_excludes.nil?
           config.release_excludes.split(",").each do |exclude|
@@ -134,16 +137,20 @@ module Lita
           end
         end
 
+        jql = "project = #{jira_project} AND summary ~ '#{location_search}' AND description ~ 'reason: #{reason_search}' AND status not in (Closed, 'Test Verified')"
+        log.info "jql                = #{jql}"
+        log.info
+
         # search for exisiting JIRA tickets based on location and reason
-        issues = fetch_issues("summary ~ '#{location_search}' AND description ~ 'reason: #{reason_search}' AND status not in (Closed, 'Test Verified')")
+        issues = fetch_issues(jql)
 
         apprun = get_hockeyapp_crash_apprun(hockeyapp_url)
 
         # create a new JIRA ticket if no issues are found
         begin
-          new_issue = create_issue("OD", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}\n\n*AppRun:* #{apprun}", "#{affects_version}") unless issues.size > 0
+          new_issue = create_issue("#{jira_project}", "#{location_summary}", "#{text}\n\n*Location:* {code}#{location_desc}{code}\n\n*Reason:* {code}#{reason_desc}{code}\n\n*Platform:* #{platform}\n\n*Release Type:* #{release_type}\n\n*Version:* #{version}\n\n*AppRun:* #{apprun}", "#{affects_version}") unless issues.size > 0
         rescue
-          log.error("ERROR: The '#{release}' release is not defined in JIRA.  '#{release}' crashes will not be processed until that is done.")
+          log.error("The '#{release}' release is not defined in JIRA.  '#{release}' crashes will not be processed until that is done.")
           return response.reply(t('hockeyappissues.affects_version_undef_jira', release: release))
         end
         hockeyapp_jira_link(new_issue, hockeyapp_url) unless issues.size > 0
@@ -231,9 +238,15 @@ module Lita
         end
 
         body_str = http.body_str[/.*({.*)/m, 1]
-        data = JSON.parse(body_str)
-        apprun = data['apprun']
-        log.info "apprun: #{apprun}"
+        apprun = nil
+        if body_str.nil?
+          apprun = "no apprun found"
+          log.error "apprun: no apprun found"
+        else
+          data = JSON.parse(body_str)
+          apprun = data['apprun']
+          log.info "apprun: #{apprun}"
+        end
 
         return apprun
       end

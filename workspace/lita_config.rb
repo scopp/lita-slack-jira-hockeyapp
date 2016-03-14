@@ -48,7 +48,7 @@ Lita.configure do |config|
   config.handlers.jira.affects_versions = ENV['JIRA_AFFECTS_VERSIONS']
   config.handlers.jira.release_excludes = ENV['RELEASE_EXCLUDES']
   config.handlers.jira.str_excludes     = ENV['STR_EXCLUDES']
+  config.handlers.jira.projects         = ENV['JIRA_PROJECTS']
   config.handlers.jira.ambient          = true
-
 
 end
