@@ -80,7 +80,7 @@ module Lita
           begin
             release = "#{jira_project} #{str_array[0]}.#{str_array[1]}.#{str_array[2].chars.first}" #only choose "1.X.X" part of "X.X.X.X"
           rescue
-            log.error("ERROR: Someone is playing with the invalid '#{release}' release build.")
+            log.error("Someone is playing with the invalid '#{release}' release build.")
             return response.reply(t('hockeyappissues.invalid_release', release: release))
           end
         end
