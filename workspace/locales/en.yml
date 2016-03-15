@@ -5,35 +5,14 @@ en:
     handlers:
       jira:
         error:
-          already_identified: "You are already identified as %{email}"
-          not_identified: You do not have an email address on record
           request: Error fetching JIRA issue
         help:
-          identify:
-            syntax: jira identify <email address>
-            desc: Associate your chat user with your email address
-          forget:
-            syntax: jira forget
-            desc: Remove your chat user / email association
-          whoami:
-            syntax: jira whoami
-            desc: Show your chat user / email association
-          comment:
-            syntax: jira comment on <issue> <comment text>
-            desc: Adds <comment text> to <issue>
-          todo:
-            syntax: todo <project> "<subject>" ["<summary>"]
-            desc: Creates an issue in <project> with <subject> and optionally <summary>
-          create_update:
-            syntax: New Crash Group for OverDrive <project> "<subject>" ["<summary>"]
-            desc: When HockeyApp Bot notifies of new Crash Group, a new JIRA ticket will be created or exisitng ticket will be udpated.
-        identify:
-          stored: "You have been identified as %{email} to JIRA"
-          deleted: You have been de-identified from JIRA
-          email: "You are identified with JIRA as %{email}"
+          details:
+            syntax: jira <issue>
+            desc: Shows detailed information for <issue>
         issue:
           created: "Issue %{key} created"
-          details: "[%{key}] %{summary}\nStatus: %{status}, assigned to: %{assigned}, fixVersion: %{fixVersion}, priority: %{priority}\n%{url}"
+          details: "[%{key}] %{summary}\n*Status:* %{status}, *Assigned To:* %{assigned}\n*Target Version:* %{targetVersion}, *Fix Version:* %{fixVersion}\n*VIP Category:* %{vipCategory}, *Priority:* %{priority}\n%{url}"
           oneline: "%{url} - %{status}, %{assigned} - %{summary}"
           summary: "%{key}: %{summary}"
         comment:

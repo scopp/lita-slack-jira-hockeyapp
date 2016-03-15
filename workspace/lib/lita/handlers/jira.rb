@@ -27,9 +27,25 @@ module Lita
       include ::JiraHelper::Issue
       include ::JiraHelper::Misc
 
+      PROJECT_PATTERN = /(?<project>[a-zA-Z0-9]{1,10})/
+      ISSUE_PATTERN   = /(?<issue>#{PROJECT_PATTERN}-[0-9]{1,5}+)/
+
+      route(/.*jira\s#{ISSUE_PATTERN}.*/,
+        :details,
+        command: false,
+        help: {t('help.details.syntax') => t('help.details.desc')}
+      )
+
       # Anything coming from a bot and has data[username] field
       # see message_handler.rb:158
-      route /(.*)/, :create_or_comment, command: false
+      route(/(.*New Crash Group for.*)/, :create_or_comment, command: false)
+
+      def details(response)
+        issue = fetch_issue(response.match_data['issue'])
+        return response.reply(t('error.request')) unless issue
+        response.reply(format_issue(issue))
+       end
+
 
       def create_or_comment(response)
         message_array = response.matches

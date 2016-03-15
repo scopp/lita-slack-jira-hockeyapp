@@ -41,13 +41,15 @@ module Lita
           json_data = hash_data.to_json
           normalized_message = json_data
 
-#         normalized_message = remove_formatting(normalized_message) unless normalized_message.nil?
-#
-#          attachment_text = Array(data["attachments"]).map do |attachment|
-#            attachment["fields"]
-#          end
-#
-#          ([normalized_message] + attachment_text).compact.join("\n")
+          if (data["subtype"] != "bot_message")
+             normalized_message = remove_formatting(normalized_message) unless normalized_message.nil?
+
+             attachment_text = Array(data["attachments"]).map do |attachment|
+               attachment["fields"]
+             end
+
+             ([normalized_message] + attachment_text).compact.join("\n")
+           end
           normalized_message
         end
 
@@ -155,7 +157,11 @@ module Lita
           log.info(data)
           return unless supported_subtype?
 
-          user = User.create(data["username"])
+          if (data["subtype"] == "bot_message")
+             user = User.create(data["username"])
+          else
+            user = User.find_by_id(data["user"]) || User.create(data["user"])
+          end
           #return if from_self?(user)
 
           dispatch_message(user)

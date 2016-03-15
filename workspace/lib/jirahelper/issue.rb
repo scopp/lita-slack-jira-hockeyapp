@@ -40,6 +40,8 @@ module JiraHelper
         assigned: optional_issue_property('unassigned') { issue.assignee.displayName },
         fixVersion: optional_issue_property('none') { issue.fixVersions.first['name'] },
         priority: optional_issue_property('none') { issue.priority.name },
+        vipCategory: optional_issue_property('none') { issue.customfield_11404.values[1] },
+        targetVersion: optional_issue_property('none') { issue.customfield_11500.first['name'] },
         url: format_issue_link(issue.key))
     end
     # rubocop:enable Metrics/AbcSize
